@@ -1,24 +1,24 @@
 $ErrorActionPreference = "Stop"
 
-# Definir directorios según el entorno (igual que en tu script de Linux)
+# Define directories based on the environment
 if ($env:GITHUB_ACTIONS) {
     $InstallDir = "$env:USERPROFILE\verapdf"
 } else {
     $InstallDir = "$env:USERPROFILE\verapdf"
 }
 
-# Descargar el instalador
-$UrlDescarga = "https://software.verapdf.org/dev/verapdf-installer.zip"
-Invoke-WebRequest -Uri $UrlDescarga -OutFile "verapdf-installer.zip"
+# Download the installer
+$DownloadUrl = "https://software.verapdf.org/dev/verapdf-installer.zip"
+Invoke-WebRequest -Uri $DownloadUrl -OutFile "verapdf-installer.zip"
 
-# Extraer el instalador
+# Extract the installer
 if (Test-Path "verapdf-snapshot") { Remove-Item -Recurse -Force "verapdf-snapshot" }
 Expand-Archive -Path "verapdf-installer.zip" -DestinationPath "verapdf-snapshot" -Force
 
-# Obtener el instalador JAR
+# Get the installer JAR
 $JarFile = Get-ChildItem -Path "verapdf-snapshot\verapdf-greenfield-*\verapdf-izpack-installer-*.jar" | Select-Object -First 1
 
-# Crear el XML de instalación silenciosa
+# Create the silent installation XML
 $XmlContent = @"
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <AutomatedInstallation langpack="eng">
@@ -37,21 +37,21 @@ $XmlContent = @"
 
 Set-Content -Path "auto-install.xml" -Value $XmlContent -Encoding UTF8
 
-# Ejecutar la instalación
+# Run the installation
 java -jar $JarFile.FullName auto-install.xml
 
-# === CONFIGURACIÓN LOCAL (WINDOWS) ===
-# Si lo ejecutas localmente, registra veraPDF en tu PATH de Usuario
+# === LOCAL CONFIGURATION (WINDOWS) ===
+# If running locally, register veraPDF in the User PATH
 if (-not $env:GITHUB_ACTIONS) {
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
     if ($UserPath -notlike "*$InstallDir*") {
         [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
-        Write-Host "veraPDF instalado localmente. Se agregó $InstallDir al PATH de usuario."
+        Write-Host "veraPDF installed locally. Added $InstallDir to user PATH."
     }
 }
 # =====================================
 
-# Limpieza de temporales
+# Cleanup temporary files
 Remove-Item "verapdf-installer.zip" -Force
 Remove-Item "verapdf-snapshot" -Recurse -Force
 Remove-Item "auto-install.xml" -Force

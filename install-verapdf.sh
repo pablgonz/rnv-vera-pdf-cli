@@ -9,8 +9,8 @@ else
     BIN_DIR="$HOME/.local/bin"
 fi
 
-URL_DESCARGA="https://software.verapdf.org/dev/verapdf-installer.zip"
-curl -fSL "$URL_DESCARGA" -o verapdf-installer.zip
+DOWNLOAD_URL="https://software.verapdf.org/dev/verapdf-installer.zip"
+curl -fSL "$DOWNLOAD_URL" -o verapdf-installer.zip
 
 rm -rf verapdf-snapshot
 unzip -q verapdf-installer.zip -d verapdf-snapshot
@@ -36,11 +36,11 @@ EOF
 
 java -jar "$JAR_FILE" auto-install.xml
 
-# === CREACIÓN DE ENLACES SIMBÓLICOS ===
+# === SYMLINK CREATION ===
 mkdir -p "$BIN_DIR"
 rm -f "$BIN_DIR/verapdf"
 ln -s "$INSTALL_DIR/verapdf" "$BIN_DIR/verapdf"
-# ======================================
+# ========================
 
 cd ../../../
 rm -f verapdf-installer.zip
