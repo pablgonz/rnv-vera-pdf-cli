@@ -1,0 +1,301 @@
+name: Automated tagged-pdf validation tools cli (TL2026)
+
+on:
+  push:
+    branches:
+      - "*"
+  schedule:
+    - cron: "0 12 * * 5"
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    name: Check and Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        version:
+          - 2026
+        command:
+          - doc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # 1. Instalar TeXLive
+      - name: Setup TeX Live ${{ matrix.version }}
+        uses: zauguin/install-texlive@v4
+        with:
+          package_file: .github/tl_packages
+          texlive_version: ${{ matrix.version }}
+
+      - name: Instalar esquemas RNC de show-pdf-tags
+        run: tlmgr install --with-doc show-pdf-tags
+
+      # 2. Compilar test.tex
+      - name: Generate tagged test.pdf
+        run: lualatex-dev test.tex
+
+      # 3. Compilar RNV y limpiar temporales (Linux)
+      - name: Compilar RNV (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          export SOURCE_DATE_EPOCH=1704067200
+          sudo apt-get update
+          sudo apt-get install -y gcc make libexpat1-dev upx-ucl curl unzip binutils zip
+          curl -O http://ftp.davidashen.net/PreTI/RNV/rnv-1.7.8.zip
+          unzip rnv-1.7.8.zip
+          cd rnv-1.7.8
+          make CC=gcc LDFLAGS="-static" rnv
+          strip rnv
+          upx --best rnv
+          mv rnv ..
+          cd ..
+          rm -rf rnv-1.7.8 rnv-1.7.8.zip
+
+      # 3. Compilar RNV y limpiar temporales (Windows)
+      - name: Configurar MSYS2 y Compilar RNV (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-expat
+            mingw-w64-x86_64-upx
+            unzip
+            curl
+            zip
+
+      - name: Compilar RNV en MSYS2 (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export SOURCE_DATE_EPOCH=1704067200
+          curl -O http://ftp.davidashen.net/PreTI/RNV/rnv-1.7.8.zip
+          unzip rnv-1.7.8.zip
+          cd rnv-1.7.8
+          make CC=gcc LDFLAGS="-static -Wl,--no-insert-timestamp" rnv
+          strip rnv.exe
+          upx --best rnv.exe
+          mv rnv.exe ..
+          cd ..
+          rm -rf rnv-1.7.8 rnv-1.7.8.zip
+
+      # 4. Configurar ejecutable local y PATH
+      - name: Configurar rnv-wrapp local (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cp rnv-wrapp.lua rnv-wrapp
+          chmod +x rnv-wrapp rnv rnv-wrapp.lua
+          echo "$PWD" >> $GITHUB_PATH
+
+      - name: Configurar rnv-wrapp local (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Set-Content -Path .\rnv-wrapp.cmd -Value '@texlua "%~dp0rnv-wrapp.lua" %*'
+          Add-Content -Path $env:GITHUB_PATH -Value $PWD
+        shell: pwsh
+
+      # 5. Probar el wrapper con esquema automático (sin extensión)
+      - name: Validar XML con rnv-wrapp vía Pipe (Linux)
+        if: runner.os == 'Linux'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto
+
+      - name: Validar XML con rnv-wrapp vía Pipe (Windows)
+        if: runner.os == 'Windows'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto
+        shell: pwsh
+
+      # 6. Clonar pdf_structure y probar con --schema=auto y --path
+      - name: Clonar repositorio pdf_structure
+        run: git clone https://github.com/latex3/pdf_structure.git
+
+      - name: Validar XML con rnv-wrapp usando --path (Linux)
+        if: runner.os == 'Linux'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto --path pdf_structure/RelaxNG
+
+      - name: Validar XML con rnv-wrapp usando --path (Windows)
+        if: runner.os == 'Windows'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto --path pdf_structure/RelaxNG
+        shell: pwsh
+
+      # 7. Instalar veraPDF
+      - name: Configurar Java 25 (Requerido por veraPDF)
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '25'
+
+      - name: Caché de veraPDF
+        id: cache-verapdf
+        uses: actions/cache@v6
+        with:
+          path: ~/verapdf
+          key: ${{ runner.os }}-verapdf-${{ hashFiles('**/install-verapdf.*') }}
+
+      - name: Instalar veraPDF (Linux)
+        if: runner.os == 'Linux' && steps.cache-verapdf.outputs.cache-hit != 'true'
+        run: |
+          chmod +x install-verapdf.sh
+          ./install-verapdf.sh
+
+      - name: Instalar veraPDF (Windows)
+        if: runner.os == 'Windows' && steps.cache-verapdf.outputs.cache-hit != 'true'
+        run: .\install-verapdf.ps1
+        shell: pwsh
+
+      - name: Configurar PATH de veraPDF (Linux)
+        if: runner.os == 'Linux'
+        run: echo "$HOME/verapdf" >> $GITHUB_PATH
+
+      - name: Configurar PATH de veraPDF (Windows)
+        if: runner.os == 'Windows'
+        run: Add-Content -Path $env:GITHUB_PATH -Value "$env:USERPROFILE\verapdf"
+        shell: pwsh
+
+      # 8. Probar veraPDF
+      - name: Validar PDF/UA-2 con veraPDF (Linux)
+        if: runner.os == 'Linux'
+        run: verapdf --flavour ua2 --format text test.pdf | grep -E "PASS|FAIL"
+
+      - name: Validar PDF/UA-2 con veraPDF (Windows)
+        if: runner.os == 'Windows'
+        run: verapdf --flavour ua2 --format text test.pdf | Select-String -Pattern "PASS|FAIL"
+
+      # 9. Empaquetar en ZIP (Determinista), generar Checksum y hacer Push
+      - name: Publicar ZIP en x64_linux
+        if: runner.os == 'Linux'
+        run: |
+          # 1. Congelar la fecha de los archivos para que el ZIP sea idéntico
+          touch -d @1704067200 rnv rnv-wrapp.lua rnv-wrapp
+
+          # 2. Comprimir (-X evita guardar atributos extra del SO)
+          zip -X -j rnv-wrapp-linux.zip rnv rnv-wrapp.lua rnv-wrapp
+          mv rnv-wrapp-linux.zip x64_linux/
+
+          cd x64_linux
+          sha256sum rnv-wrapp-linux.zip > checksums.sha256
+          cd ..
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add x64_linux
+
+          if ! git diff --cached --quiet; then
+            git commit -m "build: actualizar rnv-wrapp-linux.zip [skip ci]"
+            git stash --include-untracked
+            git pull --rebase origin ${{ github.ref_name }}
+            git push
+            git stash pop || true
+          else
+            echo "No hay cambios en el zip de Linux. Se omite el commit."
+          fi
+
+      - name: Empaquetar ZIP determinista en x64_windows (MSYS2)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          # 1. Congelar la fecha de los archivos (Determinismo)
+          touch -d @1704067200 rnv.exe rnv-wrapp.lua rnv-wrapp.cmd
+
+          # 2. Usar el zip de msys2 en lugar de PowerShell
+          zip -X -j x64_windows/rnv-wrapp-windows.zip rnv.exe rnv-wrapp.lua rnv-wrapp.cmd
+
+          # 3. Usar sha256sum nativo
+          cd x64_windows
+          sha256sum rnv-wrapp-windows.zip > checksums.sha256
+
+      - name: Publicar cambios de x64_windows en Git
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          git config core.autocrlf false
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add x64_windows
+
+          if ! git diff --cached --quiet; then
+            git commit -m "build: actualizar rnv-wrapp-windows.zip [skip ci]"
+            git stash --include-untracked
+            git pull --rebase origin ${{ github.ref_name }}
+            git push
+            git stash pop || true
+          else
+            echo "No hay cambios en el zip de Windows. Se omite el commit."
+          fi
+
+      # 10. Guardar artefactos (Ahora guarda los ZIP)
+      - name: Guardar Artefacto ZIP (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: rnv-wrapp-linux
+          path: x64_linux/rnv-wrapp-linux.zip
+
+      - name: Guardar Artefacto ZIP (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: rnv-wrapp-windows
+          path: x64_windows/rnv-wrapp-windows.zip
+
+      - name: Archive failed test output
+        if: ${{ failure() }}
+        uses: zauguin/l3build-failure-artifacts@v1
+        with:
+          name: testfiles-fillwith
+          retention-days: 3
+
+      # 11. Limpiar ejecutables locales y probar Instaladores
+      - name: Limpiar archivos locales y Ejecutar instalador (Linux)
+        if: runner.os == 'Linux'
+        env:
+          LOCAL_ZIP_PATH: "x64_linux/rnv-wrapp-linux.zip"
+        run: |
+          rm -f rnv rnv-wrapp rnv-wrapp.lua
+          chmod +x install-rnv.sh
+          ./install-rnv.sh
+
+      - name: Limpiar archivos locales y Ejecutar instalador (Windows)
+        if: runner.os == 'Windows'
+        env:
+          LOCAL_ZIP_PATH: "x64_windows\\rnv-wrapp-windows.zip"
+        run: |
+          Remove-Item rnv.exe, rnv-wrapp.lua, rnv-wrapp.cmd -ErrorAction Ignore
+          .\install-rnv.ps1
+        shell: pwsh
+
+      # 12. Validar que la instalación funciona
+      - name: Validar XML con rnv-wrapp INSTALADO (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "Verificando ruta del ejecutable:"
+          which rnv-wrapp
+
+          echo "Ejecutando validación (solo auto):"
+          show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto
+
+          echo "Ejecutando validación (con --path):"
+          show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto --path pdf_structure/RelaxNG
+
+      - name: Validar XML con rnv-wrapp INSTALADO (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Write-Host "Verificando ruta del ejecutable:"
+          Get-Command rnv-wrapp
+
+          Write-Host "Ejecutando validación (solo auto):"
+          show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto
+
+          Write-Host "Ejecutando validación (con --path):"
+          show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto --path pdf_structure/RelaxNG
+        shell: pwsh
