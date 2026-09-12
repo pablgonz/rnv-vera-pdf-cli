@@ -48,16 +48,18 @@ jobs:
         run: |
           export SOURCE_DATE_EPOCH=1704067200
           sudo apt-get update
-          sudo apt-get install -y gcc make libexpat1-dev upx-ucl curl unzip binutils zip
-          curl -O http://ftp.davidashen.net/PreTI/RNV/rnv-1.7.8.zip
-          unzip rnv-1.7.8.zip
-          cd rnv-1.7.8
-          make CC=gcc LDFLAGS="-static" rnv
+          sudo apt-get install -y gcc make libexpat1-dev upx-ucl curl unzip binutils zip autoconf automake libtool
+          curl -sSL -o rnv-1.7.11.zip https://github.com/hartwork/rnv/archive/refs/tags/1.7.11.zip
+          unzip rnv-1.7.11.zip
+          cd rnv-1.7.11
+          ./bootstrap
+          ./configure LDFLAGS="-static"
+          make rnv
           strip rnv
           upx --best rnv
           mv rnv ..
           cd ..
-          rm -rf rnv-1.7.8 rnv-1.7.8.zip
+          rm -rf rnv-1.7.11 rnv-1.7.11.zip
 
       # 3. Compilar RNV y limpiar temporales (Windows)
       - name: Configurar MSYS2 y Compilar RNV (Windows)
@@ -71,6 +73,9 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-expat
             mingw-w64-x86_64-upx
+            autoconf
+            automake
+            libtool
             unzip
             curl
             zip
@@ -80,15 +85,17 @@ jobs:
         shell: msys2 {0}
         run: |
           export SOURCE_DATE_EPOCH=1704067200
-          curl -O http://ftp.davidashen.net/PreTI/RNV/rnv-1.7.8.zip
-          unzip rnv-1.7.8.zip
-          cd rnv-1.7.8
-          make CC=gcc LDFLAGS="-static -Wl,--no-insert-timestamp" rnv
+          curl -sSL -o rnv-1.7.11.zip https://github.com/hartwork/rnv/archive/refs/tags/1.7.11.zip
+          unzip rnv-1.7.11.zip
+          cd rnv-1.7.11
+          ./bootstrap
+          ./configure LDFLAGS="-static -Wl,--no-insert-timestamp"
+          make rnv.exe
           strip rnv.exe
           upx --best rnv.exe
           mv rnv.exe ..
           cd ..
-          rm -rf rnv-1.7.8 rnv-1.7.8.zip
+          rm -rf rnv-1.7.11 rnv-1.7.11.zip
 
       # 4. Configurar ejecutable local y PATH
       - name: Configurar rnv-wrapp local (Linux)

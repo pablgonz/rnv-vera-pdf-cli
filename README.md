@@ -4,7 +4,7 @@ This repository provides installation scripts and precompiled binaries for Tagge
 
 ## What we offer
 
-We compile and distribute a statically linked version of `rnv` (Relax NG Validator), built directly from its original source code without any modifications. We package this static binary alongside our custom Lua wrapper (`rnv-wrapp`). This wrapper simplifies the validation of XML structures against specific PDF schemas.
+We compile and distribute a statically linked version of `rnv` (Relax NG Validator, v1.7.11), built directly from the official maintained repository (`hartwork/rnv`) using GNU Autotools. We package this static binary alongside our custom Lua wrapper (`rnv-wrapp`), which simplifies the validation of XML structures against specific PDF schemas.
 
 We also provide automated installers for `veraPDF` (command-line interface) to test PDF/UA compliance.
 
