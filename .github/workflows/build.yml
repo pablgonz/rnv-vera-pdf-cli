@@ -141,6 +141,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '25'
+          cache: 'maven'
 
       - name: Caché de veraPDF
         id: cache-verapdf
