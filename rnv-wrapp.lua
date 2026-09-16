@@ -69,30 +69,42 @@ end
 -- 5. Pantalla de Ayuda
 if config.help then
     print([[
-rnv-wrapp - Wrapper for Relax NG Validator v1.7.11
-Usage: rnv-wrapp [wrapper_options] [rnv_options] document.xml
+rnv-wrapp - Wrapper for Relax NG Validator v1.7.11 [TeX Live]
+Syntax
+$ rnv-wrapp [<wrapper options>] [<rnv options>] document.xml
 
-Wrapper Options:
-  --schema=<alias>     Injects the corresponding validation schema (default: auto).
-                       Valid options: auto, pdfua2, pdfua1, latexua2, latexua1, none.
-  --path=<path>        Overrides the base directory where schemas are located.
-  --strict             If validation fails, exits with an error code (halts processes).
-                       Without this, errors are printed but it exits cleanly (code 0).
+Description
 
-Native RNV Options:
-  -q                   names of files being processed are not printed; in error
-                       messages, expected elements and attributes are not listed;
-  -n <num>             sets the maximum number of reported expected elements and
-                       attributes, -q sets this to 0 and can be overriden;
-  -p                   copies the input to the output;
-  -c                   if the only argument is a grammar, checks the grammar and
-                       exits;
-  -s                   uses less memory and runs slower;
-  -v                   prints version number;
-  -h, --help           displays usage summary and exits.
+
+Options
+  --schema=<alias>  Injects the corresponding validation schema (default: auto).
+                    Valid options: auto, pdfua2, pdfua1, latexua2, latexua1, none.
+  --path=<path>     Overrides the base directory where schemas are located.
+  --strict          If validation fails, exits with an error code (halts processes).
+                    Without this, errors are printed but it exits cleanly (code 0).
+
+RNV Options
+  -q                names of files being processed are not printed; in error
+                    messages, expected elements and attributes are not listed;
+  -n <num>          sets the maximum number of reported expected elements and
+                    attributes, -q sets this to 0 and can be overriden;
+  -p                copies the input to the output;
+  -c                if the only argument is a grammar, checks the grammar and
+                    exits;
+  -s                uses less memory and runs slower;
+  -v                prints version number;
+  -h, --help        displays usage summary and exits.
 
 Note: If no documents are specified, RNV attempts to read the XML document
 from the standard input.
+
+Example
+$ show-tag-pdf --xml test.pdf | rnv-wrapp
+
+Issues and reports
+Repository : https://github.com/pablgonz/rnv-vera-pdf-cli
+Bug tracker: https://github.com/pablgonz/rnv-vera-pdf-cli/issues
+Copyright(C) 2026 by Pablo González L <pablgonz<at>educarchile.cl>
 ]])
     os.exit(0)
 end
