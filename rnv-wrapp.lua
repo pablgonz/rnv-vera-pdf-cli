@@ -16,10 +16,10 @@ local valid_schemas = {
     ["none"]     = "none.rnc"
 }
 
--- 3. Estado del parser
+-- 3. Estado del parser (auto es el valor por defecto)
 local config = {
     path = nil,
-    schema_key = nil,
+    schema_key = "auto",
     strict = false,
     help = false
 }
@@ -69,27 +69,27 @@ end
 -- 5. Pantalla de Ayuda
 if config.help then
     print([[
-RNV Wrapper for TeX Live
-Usage: rnv-wrap [wrapper_options] [rnv_options] document.xml
+rnv-wrapp - Wrapper for Relax NG Validator v1.7.11
+Usage: rnv-wrapp [wrapper_options] [rnv_options] document.xml
 
 Wrapper Options:
-  --schema=<alias>   Injects the corresponding validation schema.
-                     Valid options: auto, pdfua2, pdfua1, latexua2, latexua1, none.
-  --path=<path>      Overrides the base directory where schemas are located.
-  --strict           If validation fails, exits with an error code (halts processes).
-                     Without this, errors are printed but it exits cleanly (code 0).
+  --schema=<alias>     Injects the corresponding validation schema (default: auto).
+                       Valid options: auto, pdfua2, pdfua1, latexua2, latexua1, none.
+  --path=<path>        Overrides the base directory where schemas are located.
+  --strict             If validation fails, exits with an error code (halts processes).
+                       Without this, errors are printed but it exits cleanly (code 0).
 
 Native RNV Options:
-  -q                 names of files being processed are not printed; in error
-                     messages, expected elements and attributes are not listed;
-  -n <num>           sets the maximum number of reported expected elements and
-                     attributes, -q sets this to 0 and can be overriden;
-  -p                 copies the input to the output;
-  -c                 if the only argument is a grammar, checks the grammar and
-                     exits;
-  -s                 uses less memory and runs slower;
-  -v                 prints version number;
-  -h, --help         displays usage summary and exits.
+  -q                   names of files being processed are not printed; in error
+                       messages, expected elements and attributes are not listed;
+  -n <num>             sets the maximum number of reported expected elements and
+                       attributes, -q sets this to 0 and can be overriden;
+  -p                   copies the input to the output;
+  -c                   if the only argument is a grammar, checks the grammar and
+                       exits;
+  -s                   uses less memory and runs slower;
+  -v                   prints version number;
+  -h, --help           displays usage summary and exits.
 
 Note: If no documents are specified, RNV attempts to read the XML document
 from the standard input.
@@ -136,26 +136,21 @@ for _, v in ipairs(rnv_files) do
 end
 
 -- 8. Ejecución y Captura de Salida
--- Redirigimos stderr a stdout (2>&1) para atrapar los mensajes de error de RNV
 local full_cmd = cmd .. " 2>&1"
 local handle = io.popen(full_cmd, "r")
 local output = handle:read("*a")
 local success, _, exit_code = handle:close()
 
--- Limpiar saltos de línea extra al final del output
 output = output:gsub("%s+$", "")
 
 if success or exit_code == 0 then
-    -- Si el código de salida es 0, el XML es válido.
     print("Valid")
 
-    -- Si RNV escupió alguna advertencia aunque haya sido exitoso, la mostramos
     if output ~= "" then
         print(output)
     end
     os.exit(0)
 else
-    -- Si falló, imprimimos "Invalid:" seguido del reporte real de RNV
     print("Invalid:")
     if output ~= "" then
         print(output)
@@ -163,10 +158,9 @@ else
         print("Unknown validation error (Exit code: " .. tostring(exit_code) .. ")")
     end
 
-    -- Lógica del modo Estricto
     if config.strict then
-        os.exit(exit_code or 1) -- Rompe la cadena de comandos (devuelve error al SO)
+        os.exit(exit_code or 1)
     else
-        os.exit(0) -- Tolera el error: muestra el texto pero dice que el script terminó "bien"
+        os.exit(0)
     end
 end
