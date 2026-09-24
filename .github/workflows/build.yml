@@ -108,7 +108,17 @@ jobs:
       - name: Configurar rnv-wrapp local (Windows)
         if: runner.os == 'Windows'
         run: |
-          Set-Content -Path .\rnv-wrapp.cmd -Value '@texlua "%~dp0rnv-wrapp.lua" %*'
+          $CmdLines = @(
+            '@echo off',
+            'where texlua >nul 2>nul',
+            'if errorlevel 1 (',
+            '    echo Error: texlua not found in PATH. >&2',
+            '    echo rnv-wrapp requires a TeX Live installation with texlua available. >&2',
+            '    exit /b 1',
+            ')',
+            'texlua "%~dp0rnv-wrapp.lua" %*'
+          )
+          Set-Content -Path .\rnv-wrapp.cmd -Value $CmdLines
           Add-Content -Path $env:GITHUB_PATH -Value $PWD
         shell: pwsh
 
@@ -178,19 +188,30 @@ jobs:
         if: runner.os == 'Windows'
         run: verapdf --flavour ua2 --format text test.pdf | Select-String -Pattern "PASS|FAIL"
 
-      # 9. Empaquetar en ZIP (Determinista), generar Checksum y hacer Push
-      - name: Publicar ZIP en x64_linux
+      # 10. Package ZIP (deterministic), generate checksum, sign with
+      # GPG, and push
+      - name: Publicar ZIP y Firmar en x64_linux
         if: runner.os == 'Linux'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          # 1. Congelar la fecha de los archivos para que el ZIP sea idéntico
-          touch -d @1704067200 rnv rnv-wrapp.lua rnv-wrapp
+          touch -d @1704067200 rnv rnv-wrapp.lua rnv-wrapp LICENSE LICENSE-RNV
 
-          # 2. Comprimir (-X evita guardar atributos extra del SO)
-          zip -X -j rnv-wrapp-linux.zip rnv rnv-wrapp.lua rnv-wrapp
+          zip -X -j rnv-wrapp-linux.zip rnv rnv-wrapp.lua rnv-wrapp LICENSE LICENSE-RNV
           mv rnv-wrapp-linux.zip x64_linux/
 
           cd x64_linux
           sha256sum rnv-wrapp-linux.zip > checksums.sha256
+
+          # Import the signing key and create a detached, armored
+          # signature. --batch + --passphrase-fd avoid any interactive
+          # prompt in CI.
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase-fd 0 --detach-sign --armor \
+            -o rnv-wrapp-linux.zip.sig rnv-wrapp-linux.zip
+
           cd ..
 
           git config user.name "github-actions[bot]"
@@ -198,26 +219,23 @@ jobs:
           git add x64_linux
 
           if ! git diff --cached --quiet; then
-            git commit -m "build: actualizar rnv-wrapp-linux.zip [skip ci]"
+            git commit -m "build: actualizar rnv-wrapp-linux.zip y firma GPG [skip ci]"
             git stash --include-untracked
             git pull --rebase origin ${{ github.ref_name }}
             git push
             git stash pop || true
           else
-            echo "No hay cambios en el zip de Linux. Se omite el commit."
+            echo "No hay cambios en los artefactos de Linux. Se omite el commit."
           fi
 
       - name: Empaquetar ZIP determinista en x64_windows (MSYS2)
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          # 1. Congelar la fecha de los archivos (Determinismo)
-          touch -d @1704067200 rnv.exe rnv-wrapp.lua rnv-wrapp.cmd
+          touch -d @1704067200 rnv.exe rnv-wrapp.lua rnv-wrapp.cmd LICENSE LICENSE-RNV
 
-          # 2. Usar el zip de msys2 en lugar de PowerShell
-          zip -X -j x64_windows/rnv-wrapp-windows.zip rnv.exe rnv-wrapp.lua rnv-wrapp.cmd
+          zip -X -j x64_windows/rnv-wrapp-windows.zip rnv.exe rnv-wrapp.lua rnv-wrapp.cmd LICENSE LICENSE-RNV
 
-          # 3. Usar sha256sum nativo
           cd x64_windows
           sha256sum rnv-wrapp-windows.zip > checksums.sha256
 
@@ -240,7 +258,7 @@ jobs:
             echo "No hay cambios en el zip de Windows. Se omite el commit."
           fi
 
-      # 10. Guardar artefactos (Ahora guarda los ZIP)
+      # 11. Guardar artefactos
       - name: Guardar Artefacto ZIP (Linux)
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v7
@@ -262,7 +280,7 @@ jobs:
           name: testfiles-fillwith
           retention-days: 3
 
-      # 11. Limpiar ejecutables locales y probar Instaladores
+      # 12. Limpiar ejecutables locales y probar Instaladores
       - name: Limpiar archivos locales y Ejecutar instalador (Linux)
         if: runner.os == 'Linux'
         env:
@@ -281,7 +299,7 @@ jobs:
           .\install-rnv.ps1
         shell: pwsh
 
-      # 12. Validar que la instalación funciona
+      # 13. Validar que la instalación funciona
       - name: Validar XML con rnv-wrapp INSTALADO (Linux)
         if: runner.os == 'Linux'
         run: |
