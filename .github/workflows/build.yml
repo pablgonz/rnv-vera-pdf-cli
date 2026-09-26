@@ -177,6 +177,7 @@ jobs:
             Write-Error "rnv-wrapp accepted an unrecognized option"
             exit 1
           }
+          exit 0
 
       - name: Check rnv-wrapp --schema rejects an invalid alias (Linux)
         if: runner.os == 'Linux'
@@ -195,6 +196,7 @@ jobs:
             Write-Error "rnv-wrapp accepted an invalid schema alias"
             exit 1
           }
+          exit 0
 
       # 6. Clone pdf_structure and test with --schema=auto and --path
       - name: Clone pdf_structure repository
