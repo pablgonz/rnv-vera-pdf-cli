@@ -61,10 +61,26 @@ local rnv_flags = {}
 local rnv_files = {}
 
 -- 4. Parser de intercepción cli, via alt_getopt (CTAN: lua-alt-getopt)
+-- require() nunca consulta kpse -- son dos mecanismos de busqueda
+-- separados. alt_getopt.lua SI esta instalado (confirmado con
+-- kpse.find_file), pero vive en una carpeta de TeX Live que
+-- package.path no incluye por defecto -- hay que agregarla antes de
+-- poder hacer require() normal.
+if kpse then
+    kpse.set_program_name("luatex")
+    local found = kpse.find_file("alt_getopt.lua", "lua")
+    if found then
+        local dir = found:match("(.*[/\\])")
+        if dir then
+            package.path = dir .. "?.lua;" .. package.path
+        end
+    end
+end
+
 local ok_alt_getopt, alt_getopt = pcall(require, "alt_getopt")
 if not ok_alt_getopt then
     io.stderr:write("Error: the 'alt_getopt' Lua module was not found "
-        .. "(should ship with TeX Live's lualibs support files).\n")
+        .. "(should ship with TeX Live's lua-alt-getopt package).\n")
     os.exit(1)
 end
 
