@@ -60,69 +60,57 @@ local config = {
 local rnv_flags = {}
 local rnv_files = {}
 
--- 4. Parser de intercepción cli
-local i = 1
-while i <= #arg do
-    local current = arg[i]
+-- 4. Parser de intercepción cli, via alt_getopt (CTAN: lua-alt-getopt)
+local ok_alt_getopt, alt_getopt = pcall(require, "alt_getopt")
+if not ok_alt_getopt then
+    io.stderr:write("Error: the 'alt_getopt' Lua module was not found "
+        .. "(should ship with TeX Live's lualibs support files).\n")
+    os.exit(1)
+end
 
-    if current == "--help" then
-        config.help = true
+-- "-help" es una rareza de rnv (guion simple, varios caracteres) que
+-- ningun getopt estandar entiende -- se normaliza a "-h" antes de que
+-- alt_getopt vea el arreglo, para no que lo lea como "-h -e -l -p"
+-- apiladas.
+local raw_args = {}
+for i = 1, #arg do
+    raw_args[i] = (arg[i] == "-help") and "-h" or arg[i]
+end
 
-    elseif current == "--version" then
-        config.version = true
+-- Cortas reales de RNV (ver su propia ayuda) + sinonimos cortos en
+-- mayuscula para las opciones propias del wrapper (evitan chocar con
+-- las minusculas de RNV). alt_getopt exige un sinonimo corto para
+-- toda opcion larga, aunque el usuario nunca la escriba asi.
+local short_opts = "qn:pcsvhHVTP:S:"
+local long_opts = {
+    ["help"]    = "H",
+    ["version"] = "V",
+    ["strict"]  = "T",
+    ["path"]    = "P",
+    ["schema"]  = "S",
+}
+-- alt_getopt corta con os.exit(1) por su cuenta ante una opcion
+-- desconocida, con su propio mensaje -- no hace falta chequearlo aca.
+local opts, optind = alt_getopt.get_opts(raw_args, short_opts, long_opts)
 
-    elseif current == "--strict" then
-        config.strict = true
+if opts.H then config.help = true end
+if opts.V then config.version = true end
+if opts.T then config.strict = true end
+if opts.P then config.path = opts.P end
+if opts.S then config.schema_key = opts.S end
 
-    elseif current == "--path" then
-        if not arg[i+1] then
-            io.stderr:write("Error: option '--path' requires a value\n")
-            os.exit(1)
-        end
-        i = i + 1
-        config.path = arg[i]
-    elseif current:match("^%-%-path=(.*)") then
-        config.path = current:match("^%-%-path=(.*)")
-
-    elseif current == "--schema" then
-        if not arg[i+1] then
-            io.stderr:write("Error: option '--schema' requires a value\n")
-            os.exit(1)
-        end
-        i = i + 1
-        config.schema_key = arg[i]
-    elseif current:match("^%-%-schema=(.*)") then
-        config.schema_key = current:match("^%-%-schema=(.*)")
-
-    else
-        if current:sub(1,2) == "--" then
-            -- Ninguna bandera real de RNV usa doble guion (todas son
-            -- -q, -n, -p, -c, -s, -v, -h); si llego hasta aca sin
-            -- matchear ninguna opcion conocida del wrapper, es un
-            -- error del usuario, no algo para reenviarle a RNV.
-            io.stderr:write("Error: unrecognized option '" .. current .. "'\n")
-            os.exit(1)
-        elseif current:sub(1,1) == "-" then
-            -- Solo estas siete son banderas reales de RNV (ver su
-            -- propia ayuda); cualquier otra cosa con un solo guion es
-            -- tambien un error del usuario, no algo para reenviarle.
-            if current:match("^%-[qnpcsv]$") or current == "-h" or current == "-help" then
-                table.insert(rnv_flags, current)
-                if current == "-n" and i < #arg and not arg[i+1]:match("^%-") then
-                    i = i + 1
-                    table.insert(rnv_flags, arg[i])
-                end
-            else
-                io.stderr:write("Error: unrecognized option '" .. current .. "'\n")
-                os.exit(1)
-            end
-        else
-            -- Si no, es el documento XML
-            table.insert(rnv_files, current)
-        end
+for _, letter in ipairs({"q", "p", "c", "s", "v", "h"}) do
+    if opts[letter] then
+        table.insert(rnv_flags, "-" .. letter)
     end
+end
+if opts.n then
+    table.insert(rnv_flags, "-n")
+    table.insert(rnv_flags, opts.n)
+end
 
-    i = i + 1
+for i = optind, #raw_args do
+    table.insert(rnv_files, raw_args[i])
 end
 
 -- 5. Cero argumentos en total: mostrar ayuda, salvo que stdin este
@@ -218,7 +206,7 @@ end
 -- esquema, para que rnv corra "pelado" y replique ese corte limpio.
 local only_informational = true
 for _, v in ipairs(rnv_flags) do
-    if v ~= "-v" and v ~= "-h" and v ~= "-help" then
+    if v ~= "-v" and v ~= "-h" then
         only_informational = false
         break
     end

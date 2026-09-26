@@ -2,6 +2,7 @@
 l3build
 luatex
 lualibs
+lua-alt-getopt
 luatexbase
 latex-bin
 latex-bin-dev
