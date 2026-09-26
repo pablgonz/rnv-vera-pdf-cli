@@ -2,7 +2,7 @@
 
 local WRAPPER_VERSION = "1.0"
 
--- 1. Detección del SO y ubicación del binario RNV
+-- 1. OS detection and RNV binary location
 local is_windows = package.config:sub(1,1) == '\\'
 local rnv_bin = is_windows and "rnv.exe" or "rnv"
 local script_dir = arg[0]:match("(.*[/\\])") or "./"
@@ -30,8 +30,8 @@ local function quote_arg(v)
     end
 end
 
--- Corre "rnv -v" (sin esquema, pelado) y devuelve solo el numero,
--- para el banner de ayuda y --version -- nunca fijo a mano.
+-- Runs "rnv -v" (bare, no schema) and returns just the number, for
+-- the help banner and --version -- never hardcoded.
 local function get_rnv_version()
     local handle = io.popen(quote_arg(rnv_path) .. " -v 2>&1", "r")
     local rnv_output = handle and handle:read("*a") or ""
@@ -39,7 +39,7 @@ local function get_rnv_version()
     return rnv_output:match("rnv version (%S+)") or "unknown"
 end
 
--- 2. Diccionario de esquemas válidos
+-- 2. Valid schema dictionary
 local valid_schemas = {
     ["auto"]     = "latex-document-switch.rnc",
     ["pdfua2"]   = "document-pdf-ua2.rnc",
@@ -49,7 +49,7 @@ local valid_schemas = {
     ["none"]     = "none.rnc"
 }
 
--- 3. Estado del parser (auto es el valor por defecto)
+-- 3. Parser state (auto is the default)
 local config = {
     path = nil,
     schema_key = "auto",
@@ -60,12 +60,12 @@ local config = {
 local rnv_flags = {}
 local rnv_files = {}
 
--- 4. Parser de intercepción cli, via alt_getopt (CTAN: lua-alt-getopt)
--- require() nunca consulta kpse -- son dos mecanismos de busqueda
--- separados. alt_getopt.lua SI esta instalado (confirmado con
--- kpse.find_file), pero vive en una carpeta de TeX Live que
--- package.path no incluye por defecto -- hay que agregarla antes de
--- poder hacer require() normal.
+-- 4. CLI parser, via alt_getopt (CTAN: lua-alt-getopt)
+-- require() never consults kpse -- they're two separate lookup
+-- mechanisms. alt_getopt.lua IS installed (confirmed via
+-- kpse.find_file), but lives in a TeX Live directory that
+-- package.path doesn't include by default -- it has to be added
+-- before a normal require() can work.
 if kpse then
     kpse.set_program_name("luatex")
     local found = kpse.find_file("alt_getopt.lua", "lua")
@@ -84,19 +84,18 @@ if not ok_alt_getopt then
     os.exit(1)
 end
 
--- "-help" es una rareza de rnv (guion simple, varios caracteres) que
--- ningun getopt estandar entiende -- se normaliza a "-h" antes de que
--- alt_getopt vea el arreglo, para no que lo lea como "-h -e -l -p"
--- apiladas.
+-- "-help" is an rnv oddity (single dash, multiple characters) that
+-- no standard getopt understands -- normalized to "-h" before
+-- alt_getopt sees the array, so it isn't read as stacked "-h -e -l -p".
 local raw_args = {}
 for i = 1, #arg do
     raw_args[i] = (arg[i] == "-help") and "-h" or arg[i]
 end
 
--- Cortas reales de RNV (ver su propia ayuda) + sinonimos cortos en
--- mayuscula para las opciones propias del wrapper (evitan chocar con
--- las minusculas de RNV). alt_getopt exige un sinonimo corto para
--- toda opcion larga, aunque el usuario nunca la escriba asi.
+-- Real RNV shorts (see its own help) + uppercase short synonyms for
+-- the wrapper's own options (avoids colliding with RNV's lowercase
+-- ones). alt_getopt requires a short synonym for every long option,
+-- even if the user never types it that way.
 local short_opts = "qn:pcsvhHVTP:S:"
 local long_opts = {
     ["help"]    = "H",
@@ -105,8 +104,8 @@ local long_opts = {
     ["path"]    = "P",
     ["schema"]  = "S",
 }
--- alt_getopt corta con os.exit(1) por su cuenta ante una opcion
--- desconocida, con su propio mensaje -- no hace falta chequearlo aca.
+-- alt_getopt exits with os.exit(1) on its own for an unrecognized
+-- option, with its own message -- no need to check for it here.
 local opts, optind = alt_getopt.get_opts(raw_args, short_opts, long_opts)
 
 if opts.H then config.help = true end
@@ -129,13 +128,12 @@ for i = optind, #raw_args do
     table.insert(rnv_files, raw_args[i])
 end
 
--- 5. Cero argumentos en total: mostrar ayuda, salvo que stdin este
--- siendo redirigido (pipe/archivo). Si se paso CUALQUIER argumento
--- (una bandera valida, --schema, lo que sea), no se interviene:
--- se arma el comando y se deja que rnv se comporte como le
--- corresponde, incluido quedar esperando stdin si no hay documento
--- -- eso es su comportamiento normal y documentado, no algo que el
--- wrapper deba adivinar.
+-- 5. Zero arguments total: show help, unless stdin is redirected
+-- (pipe/file). If ANY argument was given (a valid flag, --schema,
+-- whatever), don't intervene: assemble the command and let rnv
+-- behave as it normally would, including waiting on stdin with no
+-- document -- that's its normal, documented behavior, not something
+-- the wrapper should guess at.
 if #arg == 0 then
     local ffi = require("ffi")
     ffi.cdef[[
@@ -153,7 +151,7 @@ if #arg == 0 then
     end
 end
 
--- 6. Ayuda
+-- 6. Help
 if config.help then
     print("rnv-wrapp v" .. WRAPPER_VERSION .. " - Wrapper for Relax NG Validator v"
         .. get_rnv_version() .. " under TeX Live")
@@ -202,24 +200,24 @@ $ show-tag-pdf --xml test.pdf | rnv-wrapp
 Issues and reports
 Repository : https://github.com/pablgonz/rnv-vera-pdf-cli
 Bug tracker: https://github.com/pablgonz/rnv-vera-pdf-cli/issues
-Copyright(C) 2026 by Pablo González L <pablgonz<at>educarchile.cl>
+Copyright(C) 2026 by Pablo González L <pablgonz<at>yahoo.com>
 ]])
     os.exit(0)
 end
 
--- 6b. --version: corre "rnv -v" (sin esquema, pelado) para capturar
--- su numero de version en vivo, en vez de tenerlo fijo a mano.
+-- 6b. --version: runs "rnv -v" (bare, no schema) to capture its
+-- version number live, instead of hardcoding it.
 if config.version then
     print("rnv-wrapp v" .. WRAPPER_VERSION .. " - Wrapper for Relax NG Validator v"
         .. get_rnv_version() .. " under TeX Live")
     os.exit(0)
 end
 
--- 7. Resolución de rutas
--- -v y -h no necesitan esquema para hacer su trabajo (rnv las
--- responde solo con el uso/version y corta limpio) -- si son las
--- UNICAS banderas dadas y no hay documento, no se inyecta ningun
--- esquema, para que rnv corra "pelado" y replique ese corte limpio.
+-- 7. Path resolution
+-- -v and -h don't need a schema to do their job (rnv answers them
+-- with just usage/version and exits clean) -- if they're the ONLY
+-- flags given and there's no document, no schema is injected, so rnv
+-- runs "bare" and replicates that clean exit.
 local only_informational = true
 for _, v in ipairs(rnv_flags) do
     if v ~= "-v" and v ~= "-h" then
@@ -255,7 +253,7 @@ if config.schema_key and not skip_schema then
     resolved_schema = clean_path .. "/" .. filename
 end
 
--- 8. Ensamblaje (rnv [opciones_rnv] esquema xml)
+-- 8. Assembly (rnv [rnv_options] schema xml)
 local cmd = quote_arg(rnv_path)
 
 for _, v in ipairs(rnv_flags) do
@@ -270,7 +268,7 @@ for _, v in ipairs(rnv_files) do
     cmd = cmd .. ' ' .. quote_arg(v)
 end
 
--- 9. Ejecución y Captura de Salida
+-- 9. Execution and output capture
 local full_cmd = cmd .. " 2>&1"
 local handle = io.popen(full_cmd, "r")
 local output = handle:read("*a")
@@ -279,9 +277,9 @@ local success, _, exit_code = handle:close()
 output = output:gsub("%s+$", "")
 
 if skip_schema then
-    -- Modo informativo (-v/-h solas, sin documento): no hay nada que
-    -- validar, asi que PASS/FAIL no tiene sentido -- se muestra la
-    -- salida de rnv tal cual, y se sale con su mismo codigo.
+    -- Informational mode (-v/-h alone, no document): nothing to
+    -- validate, so PASS/FAIL makes no sense -- rnv's output is shown
+    -- as-is, and exits with its same code.
     if output ~= "" then
         print(output)
     end
