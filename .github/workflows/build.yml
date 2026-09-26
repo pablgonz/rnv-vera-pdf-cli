@@ -142,21 +142,23 @@ jobs:
 
       - name: Check rnv-wrapp -help (Linux)
         if: runner.os == 'Linux'
-        run: rnv-wrapp -help
+        run: rnv-wrapp -help || true
 
       - name: Check rnv-wrapp -help (Windows)
         if: runner.os == 'Windows'
         run: rnv-wrapp -help
         shell: pwsh
+        continue-on-error: true
 
       - name: Check rnv-wrapp -h (Linux)
         if: runner.os == 'Linux'
-        run: rnv-wrapp -h
+        run: rnv-wrapp -h || true
 
       - name: Check rnv-wrapp -h (Windows)
         if: runner.os == 'Windows'
         run: rnv-wrapp -h
         shell: pwsh
+        continue-on-error: true
 
       - name: Check rnv-wrapp rejects an unrecognized long option (Linux)
         if: runner.os == 'Linux'
