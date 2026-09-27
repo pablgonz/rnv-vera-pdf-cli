@@ -21,6 +21,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         version:
           - 2026
+        command:
+          - doc
 
     steps:
       - name: Checkout
@@ -200,6 +202,35 @@ jobs:
             exit 1
           }
           exit 0
+
+      # 5c. Forwarded RNV flags and the "--schema value" (space) form,
+      # never exercised before.
+      - name: Check rnv-wrapp forwards -q (Linux)
+        if: runner.os == 'Linux'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp -q --schema=auto
+
+      - name: Check rnv-wrapp forwards -q (Windows)
+        if: runner.os == 'Windows'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp -q --schema=auto
+        shell: pwsh
+
+      - name: Check rnv-wrapp forwards -n with a value (Linux)
+        if: runner.os == 'Linux'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp -n 5 --schema=auto
+
+      - name: Check rnv-wrapp forwards -n with a value (Windows)
+        if: runner.os == 'Windows'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp -n 5 --schema=auto
+        shell: pwsh
+
+      - name: Check rnv-wrapp accepts "--schema value" (space form) (Linux)
+        if: runner.os == 'Linux'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema auto
+
+      - name: Check rnv-wrapp accepts "--schema value" (space form) (Windows)
+        if: runner.os == 'Windows'
+        run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema auto
+        shell: pwsh
 
       # 6. Clone pdf_structure and test with --schema=auto and --path
       - name: Clone pdf_structure repository
