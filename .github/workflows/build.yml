@@ -214,7 +214,28 @@ jobs:
         run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto --path pdf_structure/RelaxNG
         shell: pwsh
 
-      # 6b. FAIL path: test-fail.pdf has no real structure. It SHOULD
+      # 6b. Confirm test-fail.pdf is genuinely untagged, independent
+      # of the rnv/schema issue below.
+      - name: Check test-fail.pdf is reported as untagged (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if ! show-pdf-tags --xml test-fail.pdf 2>&1 | grep -q "might not be tagged"; then
+            echo "Error: expected the 'might not be tagged' warning from show-pdf-tags" >&2
+            exit 1
+          fi
+
+      - name: Check test-fail.pdf is reported as untagged (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $output = show-pdf-tags --xml test-fail.pdf 2>&1
+          if (-not ($output -match "might not be tagged")) {
+            Write-Error "Expected the 'might not be tagged' warning from show-pdf-tags"
+            exit 1
+          }
+          exit 0
+
+      # 6c. FAIL path: test-fail.pdf has no real structure. It SHOULD
       # be rejected by rnv, but a confirmed upstream schema issue
       # currently reports it as PASS instead (reported to David
       # Carlisle) -- these are downgraded to a smoke test (wrapper
