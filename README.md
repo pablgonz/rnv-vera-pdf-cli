@@ -83,6 +83,9 @@ Releases are cryptographically signed during our automated GitHub Actions CI/CD 
 
 To verify a release yourself:
 ```bash
+curl -O https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/pubkey.asc
+curl -O https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/x64_linux/rnv-wrapp-linux.zip
+curl -O https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/x64_linux/rnv-wrapp-linux.zip.sig
 gpg --import pubkey.asc
 gpg --verify rnv-wrapp-linux.zip.sig rnv-wrapp-linux.zip
 ```
