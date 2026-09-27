@@ -1,5 +1,10 @@
 #!/usr/bin/env texlua
 
+-- Must be the first line of any texlua script: LuaTeX doesn't add the
+-- kpse-aware require() searcher until this has run, and other things
+-- are half-broken without it too.
+kpse.set_program_name("luatex")
+
 local WRAPPER_VERSION = "1.0"
 
 -- 1. OS detection and RNV binary location
@@ -60,72 +65,70 @@ local config = {
 local rnv_flags = {}
 local rnv_files = {}
 
--- 4. CLI parser, via alt_getopt (CTAN: lua-alt-getopt)
--- require() never consults kpse -- they're two separate lookup
--- mechanisms. alt_getopt.lua IS installed (confirmed via
--- kpse.find_file), but lives in a TeX Live directory that
--- package.path doesn't include by default -- it has to be added
--- before a normal require() can work.
-if kpse then
-    kpse.set_program_name("luatex")
-    local found = kpse.find_file("alt_getopt.lua", "lua")
-    if found then
-        local dir = found:match("(.*[/\\])")
-        if dir then
-            package.path = dir .. "?.lua;" .. package.path
+-- 4. CLI parser, self-contained (no external dependency)
+local i = 1
+while i <= #arg do
+    local current = arg[i]
+
+    if current == "--help" then
+        config.help = true
+
+    elseif current == "--version" then
+        config.version = true
+
+    elseif current == "--strict" then
+        config.strict = true
+
+    elseif current == "--path" then
+        if not arg[i+1] then
+            io.stderr:write("Error: option '--path' requires a value\n")
+            os.exit(1)
+        end
+        i = i + 1
+        config.path = arg[i]
+    elseif current:match("^%-%-path=(.*)") then
+        config.path = current:match("^%-%-path=(.*)")
+
+    elseif current == "--schema" then
+        if not arg[i+1] then
+            io.stderr:write("Error: option '--schema' requires a value\n")
+            os.exit(1)
+        end
+        i = i + 1
+        config.schema_key = arg[i]
+    elseif current:match("^%-%-schema=(.*)") then
+        config.schema_key = current:match("^%-%-schema=(.*)")
+
+    else
+        if current:sub(1,2) == "--" then
+            -- No real RNV flag uses a double dash (all are -q, -n,
+            -- -p, -c, -s, -v, -h); anything unrecognized here is a
+            -- user error, not something to forward to RNV.
+            io.stderr:write("Error: unrecognized option '" .. current .. "'\n")
+            os.exit(1)
+        elseif current == "-h" or current == "-help" then
+            -- "-help" is an RNV oddity (single dash, multiple
+            -- characters); normalized to "-h" before forwarding.
+            table.insert(rnv_flags, "-h")
+        elseif current:match("^%-[qnpcsv]$") then
+            table.insert(rnv_flags, current)
+            if current == "-n" then
+                if not arg[i+1] then
+                    io.stderr:write("Error: option '-n' requires a value\n")
+                    os.exit(1)
+                end
+                i = i + 1
+                table.insert(rnv_flags, arg[i])
+            end
+        elseif current:sub(1,1) == "-" then
+            io.stderr:write("Error: unrecognized option '" .. current .. "'\n")
+            os.exit(1)
+        else
+            table.insert(rnv_files, current)
         end
     end
-end
 
-local ok_alt_getopt, alt_getopt = pcall(require, "alt_getopt")
-if not ok_alt_getopt then
-    io.stderr:write("Error: the 'alt_getopt' Lua module was not found "
-        .. "(should ship with TeX Live's lua-alt-getopt package).\n")
-    os.exit(1)
-end
-
--- "-help" is an rnv oddity (single dash, multiple characters) that
--- no standard getopt understands -- normalized to "-h" before
--- alt_getopt sees the array, so it isn't read as stacked "-h -e -l -p".
-local raw_args = {}
-for i = 1, #arg do
-    raw_args[i] = (arg[i] == "-help") and "-h" or arg[i]
-end
-
--- Real RNV shorts (see its own help) + uppercase short synonyms for
--- the wrapper's own options (avoids colliding with RNV's lowercase
--- ones). alt_getopt requires a short synonym for every long option,
--- even if the user never types it that way.
-local short_opts = "qn:pcsvhHVTP:S:"
-local long_opts = {
-    ["help"]    = "H",
-    ["version"] = "V",
-    ["strict"]  = "T",
-    ["path"]    = "P",
-    ["schema"]  = "S",
-}
--- alt_getopt exits with os.exit(1) on its own for an unrecognized
--- option, with its own message -- no need to check for it here.
-local opts, optind = alt_getopt.get_opts(raw_args, short_opts, long_opts)
-
-if opts.H then config.help = true end
-if opts.V then config.version = true end
-if opts.T then config.strict = true end
-if opts.P then config.path = opts.P end
-if opts.S then config.schema_key = opts.S end
-
-for _, letter in ipairs({"q", "p", "c", "s", "v", "h"}) do
-    if opts[letter] then
-        table.insert(rnv_flags, "-" .. letter)
-    end
-end
-if opts.n then
-    table.insert(rnv_flags, "-n")
-    table.insert(rnv_flags, opts.n)
-end
-
-for i = optind, #raw_args do
-    table.insert(rnv_files, raw_args[i])
+    i = i + 1
 end
 
 -- 5. Zero arguments total: show help, unless stdin is redirected
@@ -200,7 +203,7 @@ $ show-tag-pdf --xml test.pdf | rnv-wrapp
 Issues and reports
 Repository : https://github.com/pablgonz/rnv-vera-pdf-cli
 Bug tracker: https://github.com/pablgonz/rnv-vera-pdf-cli/issues
-Copyright(C) 2026 by Pablo González L <pablgonz<at>yahoo.com>
+Copyright(C) 2026 by Pablo González L <pablgonz<at>educarchile.cl>
 ]])
     os.exit(0)
 end
@@ -240,11 +243,6 @@ if config.schema_key and not skip_schema then
     local target_dir = config.path
 
     if not target_dir or target_dir == "" then
-        if not kpse then
-            io.stderr:write("Error: kpse is not available -- is this running under texlua from a TeX Live installation?\n")
-            os.exit(1)
-        end
-        kpse.set_program_name("luatex")
         local texmfdist = kpse.expand_var("$TEXMFDIST")
         target_dir = texmfdist .. "/doc/support/show-pdf-tags"
     end
