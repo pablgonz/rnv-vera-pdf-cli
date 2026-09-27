@@ -40,6 +40,9 @@ jobs:
       - name: Generate tagged test.pdf
         run: lualatex-dev test.tex
 
+      - name: Generate untagged test-fail.pdf
+        run: lualatex-dev test-fail.tex
+
       # 3. Build RNV and clean up temp files (Linux)
       - name: Build RNV (Linux)
         if: runner.os == 'Linux'
@@ -210,6 +213,49 @@ jobs:
         if: runner.os == 'Windows'
         run: show-pdf-tags --xml test.pdf | rnv-wrapp --schema=auto --path pdf_structure/RelaxNG
         shell: pwsh
+
+      # 6b. FAIL path: test-fail.pdf has no real structure, so rnv
+      # should reject it.
+      - name: Check rnv-wrapp reports FAIL on an untagged PDF (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          output=$(show-pdf-tags --xml test-fail.pdf | rnv-wrapp --schema=auto)
+          echo "$output"
+          if ! echo "$output" | grep -q "^FAIL:"; then
+            echo "Error: expected FAIL, got something else" >&2
+            exit 1
+          fi
+
+      - name: Check rnv-wrapp reports FAIL on an untagged PDF (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $output = show-pdf-tags --xml test-fail.pdf | rnv-wrapp --schema=auto
+          $output
+          if (-not ($output -match "^FAIL:")) {
+            Write-Error "Expected FAIL, got something else"
+            exit 1
+          }
+          exit 0
+
+      - name: Check rnv-wrapp --strict exits non-zero on failure (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if show-pdf-tags --xml test-fail.pdf | rnv-wrapp --schema=auto --strict; then
+            echo "Error: --strict should have exited non-zero on a failing document" >&2
+            exit 1
+          fi
+
+      - name: Check rnv-wrapp --strict exits non-zero on failure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          show-pdf-tags --xml test-fail.pdf | rnv-wrapp --schema=auto --strict
+          if ($LASTEXITCODE -eq 0) {
+            Write-Error "--strict should have exited non-zero on a failing document"
+            exit 1
+          }
+          exit 0
 
       # 7. Install veraPDF
       - name: Set up Java 25 (required by veraPDF)
