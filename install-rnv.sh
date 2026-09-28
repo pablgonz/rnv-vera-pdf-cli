@@ -1,30 +1,48 @@
 #!/bin/bash
 set -e
 
+show_help() {
+    echo "Usage: install-rnv.sh --unattended | --install-dir[=<path>]"
+    echo ""
+    echo "  --unattended          Install to $HOME/.local/bin/rnv-wrapp"
+    echo "                        (or --install-dir's value, if also given)"
+    echo "                        and add it to PATH automatically, without"
+    echo "                        asking anything."
+    echo "  --install-dir=<path>  Install to <path> instead of the default."
+    echo "                        Never touches PATH on its own -- prints"
+    echo "                        the line to add yourself, unless combined"
+    echo "                        with --unattended."
+    echo "  --install-dir         Same, but without a path: prompts for one"
+    echo "                        interactively (only works when run from a"
+    echo "                        real terminal, not through a pipe)."
+}
+
+# Default install location follows the systemd File Hierarchy
+# Specification for per-user executables:
+# "~/.local/bin/ -- Executables that shall appear in the user's $PATH
+# search path." (freedesktop.org, file-hierarchy.html, Home Directory)
 INSTALL_DIR="$HOME/.local/bin/rnv-wrapp"
-ADD_TO_PATH=true
+UNATTENDED=false
+PROMPT_FOR_INSTALL_DIR=false
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
+fi
 
 for arg in "$@"; do
     case "$arg" in
-        --no-path)
-            ADD_TO_PATH=false
+        --unattended)
+            UNATTENDED=true
             ;;
         --install-dir=*)
             INSTALL_DIR="${arg#--install-dir=}"
-            ADD_TO_PATH=false
+            ;;
+        --install-dir)
+            PROMPT_FOR_INSTALL_DIR=true
             ;;
         --help|-h)
-            echo "Usage: install-rnv-wrapp.sh [--install-dir=<path>] [--no-path]"
-            echo ""
-            echo "  --install-dir=<path>  Install to <path> instead of"
-            echo "                        ~/.local/bin/rnv-wrapp. Implies"
-            echo "                        --no-path (see below)."
-            echo "  --no-path             Do not modify ~/.bashrc or ~/.zshrc to"
-            echo "                        add the install dir to PATH. Implied"
-            echo "                        by --install-dir, but can also be used"
-            echo "                        on its own with the default install"
-            echo "                        dir. Has no effect under GitHub"
-            echo "                        Actions, which always uses GITHUB_PATH."
+            show_help
             exit 0
             ;;
         *)
@@ -33,6 +51,17 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+if [ "$PROMPT_FOR_INSTALL_DIR" = true ]; then
+    if [ -t 0 ]; then
+        read -r -p "Install directory [$INSTALL_DIR]: " user_dir
+        INSTALL_DIR="${user_dir:-$INSTALL_DIR}"
+    else
+        echo "Error: '--install-dir' with no value needs a real terminal to ask for one." >&2
+        echo "Pass '--install-dir=<path>' instead when running non-interactively." >&2
+        exit 1
+    fi
+fi
 
 # === 0. DEPENDENCY CHECK ===
 REQUIRED_TOOLS=("curl" "unzip" "gpg" "sha256sum")
@@ -110,28 +139,28 @@ unzip -oq "rnv-wrapp-linux.zip" -d "$INSTALL_DIR"
 chmod +x "$INSTALL_DIR/rnv" "$INSTALL_DIR/rnv-wrapp" "$INSTALL_DIR/rnv-wrapp.lua"
 
 # === 4. PATH CONFIGURATION ===
+# Only --unattended ever touches PATH on its own; otherwise, the
+# exact line to add is printed and left for the user to decide.
 NEEDS_SOURCE_HINT=false
 if [ -n "$GITHUB_ACTIONS" ]; then
     echo "$INSTALL_DIR" >> "$GITHUB_PATH"
-elif [ "$ADD_TO_PATH" = true ]; then
-    if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
-        # $ZSH_VERSION is only set inside an actual zsh session, never
-        # inside a script started with #!/bin/bash -- use $SHELL (the
-        # user's own default shell) instead.
-        SHELL_RC="$HOME/.bashrc"
-        case "$SHELL" in
-            */zsh) SHELL_RC="$HOME/.zshrc" ;;
-        esac
+elif [[ ":$PATH:" == *":$INSTALL_DIR:"* ]]; then
+    echo "rnv-wrapp installed to $INSTALL_DIR (already in PATH)."
+elif [ "$UNATTENDED" = true ]; then
+    # $ZSH_VERSION is only set inside an actual zsh session, never
+    # inside a script started with #!/bin/bash -- use $SHELL (the
+    # user's own default shell) instead.
+    SHELL_RC="$HOME/.bashrc"
+    case "$SHELL" in
+        */zsh) SHELL_RC="$HOME/.zshrc" ;;
+    esac
 
-        echo -e "\nexport PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_RC"
-        echo "rnv-wrapp installed. Added $INSTALL_DIR to PATH in $SHELL_RC."
-        NEEDS_SOURCE_HINT=true
-    else
-        echo "rnv-wrapp installed to $INSTALL_DIR (already in PATH)."
-    fi
+    echo -e "\nexport PATH=\"\$PATH:$INSTALL_DIR\"" >> "$SHELL_RC"
+    echo "rnv-wrapp installed. Added $INSTALL_DIR to PATH in $SHELL_RC."
+    NEEDS_SOURCE_HINT=true
 else
-    echo "rnv-wrapp installed to $INSTALL_DIR (PATH not modified, --no-path)."
-    echo "To use it, add this to your shell's rc file yourself:"
+    echo "rnv-wrapp installed to $INSTALL_DIR."
+    echo "Add this to your shell's rc file to use it by name:"
     echo "  export PATH=\"\$PATH:$INSTALL_DIR\""
 fi
 # =================================

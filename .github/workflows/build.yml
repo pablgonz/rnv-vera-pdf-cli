@@ -301,7 +301,7 @@ jobs:
         if: runner.os == 'Linux' && steps.cache-verapdf.outputs.cache-hit != 'true'
         run: |
           chmod +x install-verapdf.sh
-          ./install-verapdf.sh
+          ./install-verapdf.sh --unattended
 
       - name: Install veraPDF (Windows)
         if: runner.os == 'Windows' && steps.cache-verapdf.outputs.cache-hit != 'true'
@@ -432,7 +432,7 @@ jobs:
         run: |
           rm -f rnv rnv-wrapp rnv-wrapp.lua
           chmod +x install-rnv.sh
-          ./install-rnv.sh
+          ./install-rnv.sh --unattended
 
       - name: Remove local files and run installer (Windows)
         if: runner.os == 'Windows'

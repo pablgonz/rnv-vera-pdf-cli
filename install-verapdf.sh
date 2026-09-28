@@ -1,23 +1,55 @@
 #!/bin/bash
 set -e
 
+show_help() {
+    echo "Usage: install-verapdf.sh --unattended | --install-dir[=<path>]"
+    echo ""
+    echo "  --unattended          Install to $HOME/verapdf (or --install-dir's"
+    echo "                        value, if also given) and symlink it into"
+    echo "                        $HOME/.local/bin automatically, without"
+    echo "                        asking anything."
+    echo "  --install-dir=<path>  Install to <path> instead of the default."
+    echo "                        Still symlinks into $HOME/.local/bin (valid"
+    echo "                        at any location) unless --no-symlink is"
+    echo "                        also given."
+    echo "  --install-dir         Same, but without a path: prompts for one"
+    echo "                        interactively (only works when run from a"
+    echo "                        real terminal, not through a pipe)."
+    echo "  --no-symlink          Do not create the symlink in"
+    echo "                        $HOME/.local/bin."
+}
+
 INSTALL_DIR="$HOME/verapdf"
+# The symlink target follows the systemd File Hierarchy Specification
+# for per-user executables: "~/.local/bin/ -- Executables that shall
+# appear in the user's $PATH search path." (freedesktop.org,
+# file-hierarchy.html, Home Directory)
 BIN_DIR="$HOME/.local/bin"
+UNATTENDED=false
 ADD_SYMLINK=true
+PROMPT_FOR_INSTALL_DIR=false
+
+if [ $# -eq 0 ]; then
+    show_help
+    exit 0
+fi
 
 for arg in "$@"; do
     case "$arg" in
+        --unattended)
+            UNATTENDED=true
+            ;;
         --no-symlink)
             ADD_SYMLINK=false
             ;;
         --install-dir=*)
             INSTALL_DIR="${arg#--install-dir=}"
             ;;
+        --install-dir)
+            PROMPT_FOR_INSTALL_DIR=true
+            ;;
         --help|-h)
-            echo "Usage: install-verapdf.sh [--install-dir=<path>] [--no-symlink]"
-            echo ""
-            echo "  --install-dir=<path>  Install to <path> instead of ~/verapdf."
-            echo "  --no-symlink          Do not create a symlink in ~/.local/bin."
+            show_help
             exit 0
             ;;
         *)
@@ -26,6 +58,17 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+if [ "$PROMPT_FOR_INSTALL_DIR" = true ]; then
+    if [ -t 0 ]; then
+        read -r -p "Install directory [$INSTALL_DIR]: " user_dir
+        INSTALL_DIR="${user_dir:-$INSTALL_DIR}"
+    else
+        echo "Error: '--install-dir' with no value needs a real terminal to ask for one." >&2
+        echo "Pass '--install-dir=<path>' instead when running non-interactively." >&2
+        exit 1
+    fi
+fi
 
 # === 0. DEPENDENCY CHECK ===
 REQUIRED_TOOLS=("curl" "unzip" "java")
@@ -99,7 +142,10 @@ if [ ! -x "$INSTALL_DIR/verapdf" ]; then
 fi
 
 # === SYMLINK ===
-if [ "$ADD_SYMLINK" = true ]; then
+# Only --unattended ever creates the symlink without being asked to;
+# --install-dir alone does not imply it, since a symlink is equally
+# valid at any location.
+if [ "$ADD_SYMLINK" = true ] && [ "$UNATTENDED" = true ]; then
     mkdir -p "$BIN_DIR"
     if [ -L "$BIN_DIR/verapdf" ]; then
         echo "Replacing existing symlink at $BIN_DIR/verapdf"
@@ -110,9 +156,9 @@ if [ "$ADD_SYMLINK" = true ]; then
     ln -s "$INSTALL_DIR/verapdf" "$BIN_DIR/verapdf"
     echo "veraPDF installed to $INSTALL_DIR. Symlinked to $BIN_DIR/verapdf."
 else
-    echo "veraPDF installed to $INSTALL_DIR (no symlink created, --no-symlink)."
-    echo "Call it directly, or add this to your PATH yourself:"
-    echo "  $INSTALL_DIR"
+    echo "veraPDF installed to $INSTALL_DIR."
+    echo "Call it directly, or symlink it into your PATH yourself:"
+    echo "  ln -s \"$INSTALL_DIR/verapdf\" \"$BIN_DIR/verapdf\""
 fi
 # =========================
 
