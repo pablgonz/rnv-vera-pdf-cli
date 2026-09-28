@@ -21,6 +21,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         version:
           - 2026
+        command:
+          - doc
 
     steps:
       - name: Checkout
@@ -305,7 +307,7 @@ jobs:
 
       - name: Install veraPDF (Windows)
         if: runner.os == 'Windows' && steps.cache-verapdf.outputs.cache-hit != 'true'
-        run: .\install-verapdf.ps1
+        run: .\install-verapdf.ps1 --unattended
         shell: pwsh
 
       - name: Set up veraPDF PATH (Linux)
@@ -440,7 +442,7 @@ jobs:
           LOCAL_ZIP_PATH: "x64_windows\\rnv-wrapp-windows.zip"
         run: |
           Remove-Item rnv.exe, rnv-wrapp.lua, rnv-wrapp.cmd -ErrorAction Ignore
-          .\install-rnv.ps1
+          .\install-rnv.ps1 --unattended
         shell: pwsh
 
       # 13. Validate that the installation works

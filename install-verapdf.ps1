@@ -1,23 +1,54 @@
 $ErrorActionPreference = "Stop"
 
-$InstallDir = "$env:USERPROFILE\verapdf"
+function Show-Help {
+    Write-Host "Usage: install-verapdf.ps1 --unattended | --install-dir[=<path>]"
+    Write-Host ""
+    Write-Host "  --unattended          Install to $env:USERPROFILE\verapdf"
+    Write-Host "                        (or --install-dir's value, if also given)"
+    Write-Host "                        and add it to the user PATH automatically,"
+    Write-Host "                        without asking anything."
+    Write-Host "  --install-dir=<path>  Install to <path> instead of the default."
+    Write-Host "                        Never touches PATH on its own -- prints"
+    Write-Host "                        the command to run yourself, unless"
+    Write-Host "                        combined with --unattended."
+    Write-Host "  --install-dir         Same, but without a path: prompts for one"
+    Write-Host "                        interactively (only works when run from a"
+    Write-Host "                        real terminal, not through a pipe)."
+}
 
-# Only direct invocation (not irm | iex) can pass --install-dir.
+$InstallDir = "$env:USERPROFILE\verapdf"
+$Unattended = $false
+$PromptForInstallDir = $false
+
+if ($args.Count -eq 0) {
+    Show-Help
+    exit 0
+}
+
+# Only direct invocation (not irm | iex) can pass arguments.
 foreach ($a in $args) {
     switch -Regex ($a) {
+        '^--unattended$' { $Unattended = $true }
         '^--install-dir=(.*)$' { $InstallDir = $Matches[1] }
+        '^--install-dir$' { $PromptForInstallDir = $true }
         '^--help$' {
-            Write-Host "Usage: install-verapdf.ps1 [--install-dir=<path>]"
-            Write-Host ""
-            Write-Host "  --install-dir=<path>  Install to <path> instead of"
-            Write-Host "                        $env:USERPROFILE\verapdf. Still added"
-            Write-Host "                        to the user PATH."
+            Show-Help
             exit 0
         }
         default {
             Write-Error "Error: unrecognized option '$a'"
             exit 1
         }
+    }
+}
+
+if ($PromptForInstallDir) {
+    if (-not [Console]::IsInputRedirected) {
+        $userDir = Read-Host "Install directory [$InstallDir]"
+        if ($userDir) { $InstallDir = $userDir }
+    } else {
+        Write-Error "'--install-dir' with no value needs a real terminal to ask for one. Pass '--install-dir=<path>' instead when running non-interactively."
+        exit 1
     }
 }
 
@@ -92,15 +123,21 @@ if (-not (Test-Path $VeraPdfBin)) {
 # ============================
 
 # === PATH CONFIGURATION ===
+# Only --unattended ever touches PATH on its own; otherwise, a ready
+# to paste command is printed and left for the user to run.
 if ($env:GITHUB_ACTIONS) {
     Add-Content -Path $env:GITHUB_PATH -Value $InstallDir
 } else {
     $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($UserPath -notlike "*$InstallDir*") {
-        [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
-        Write-Host "veraPDF installed locally. Added $InstallDir to user PATH."
-    } else {
+    if ($UserPath -like "*$InstallDir*") {
         Write-Host "veraPDF installed to $InstallDir (already in PATH)."
+    } elseif ($Unattended) {
+        [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
+        Write-Host "veraPDF installed. Added $InstallDir to user PATH."
+    } else {
+        Write-Host "veraPDF installed to $InstallDir."
+        Write-Host "Run this to add it to your user PATH:"
+        Write-Host "  [Environment]::SetEnvironmentVariable('Path', `$env:Path + ';$InstallDir', 'User')"
     }
 }
 # =====================================
