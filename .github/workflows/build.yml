@@ -345,13 +345,14 @@ jobs:
           # Import the signing key and create a detached, armored
           # signature. --batch + --passphrase-fd avoid any interactive
           # prompt in CI. --faked-system-time pins gpg's own signature
-          # creation timestamp, so re-signing identical content always
-          # produces identical bytes (otherwise it embeds the real
-          # wall-clock time, which differs between runs and would
-          # conflict with a previous push of the same content).
+          # creation timestamp (2026-09-24, the signing key's own
+          # creation date -- gpg refuses to sign with a key that,
+          # from its own faked clock, doesn't exist yet), so
+          # re-signing identical content always produces identical
+          # bytes.
           echo "$GPG_PRIVATE_KEY" | gpg --batch --import
           echo "$GPG_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
-            --faked-system-time "347241600!" \
+            --faked-system-time "1790208000!" \
             --passphrase-fd 0 --detach-sign --armor \
             -o rnv-wrapp-linux.zip.sig rnv-wrapp-linux.zip
 
