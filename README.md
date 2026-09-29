@@ -10,18 +10,21 @@ We also provide automated installers for `veraPDF` (command-line interface) to t
 
 ## Quick Installation
 
-Run the command for your operating system. Each installer downloads the required files, extracts them to a default location, and adds that location to your PATH — restart your terminal afterwards (or, on Linux/macOS, run `source ~/.bashrc` or `source ~/.zshrc`) to use the new command right away.
+Run the command for your operating system. `--unattended` installs to a default location and adds it to PATH automatically, without asking anything — restart your terminal afterwards (or, on Linux/macOS, run `source ~/.bashrc` or `source ~/.zshrc`) to use the new command right away.
+
+Run any installer with no arguments to see its full set of options, including how to pick a different install location or skip touching PATH.
 
 ### 1. Install rnv-wrapp
 
 **Linux / macOS (Bash):** installs to `~/.local/bin/rnv-wrapp`.
 ```bash
-curl -sSL https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-rnv.sh | bash
+curl -sSL https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-rnv.sh | bash -s -- --unattended
 ```
 
-**Windows (PowerShell):** installs to `%USERPROFILE%\rnv-wrapp`.
+**Windows (PowerShell):** installs to `%USERPROFILE%\rnv-wrapp`. The one-liner below can't pass `--unattended` through the pipe — download the script and run it with the flag instead.
 ```powershell
-Invoke-RestMethod -Uri "https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-rnv.ps1" | Invoke-Expression
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-rnv.ps1" -OutFile install-rnv.ps1
+.\install-rnv.ps1 --unattended
 ```
 
 ### 2. Install veraPDF (CLI)
@@ -30,49 +33,39 @@ Invoke-RestMethod -Uri "https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-
 
 **Linux / macOS (Bash):** installs to `~/verapdf`, with a symlink in `~/.local/bin`.
 ```bash
-curl -sSL https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-verapdf.sh | bash
+curl -sSL https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-verapdf.sh | bash -s -- --unattended
 ```
 
 **Windows (PowerShell):** installs to `%USERPROFILE%\verapdf`.
 ```powershell
-Invoke-RestMethod -Uri "https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-verapdf.ps1" | Invoke-Expression
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-verapdf.ps1" -OutFile install-verapdf.ps1
+.\install-verapdf.ps1 --unattended
 ```
 
 ## Custom Install Location
 
-Download the installer first, then run it with options — a one-liner pipe doesn't make sense once you're making a deliberate choice like a custom path.
+Without `--unattended`, an installer never touches PATH on its own — it prints the exact line (Linux/macOS) or command (Windows) to run yourself.
 
-### 1. rnv-wrapp
+`--install-dir=<path>` picks a different install location. Combine it with `--unattended` for a fully automatic install elsewhere; on its own, it installs there but leaves PATH alone. `--install-dir` with no path prompts for one interactively — only works when run from a real terminal, not through a pipe.
 
-**Linux / macOS:** `--install-dir=<path>` installs elsewhere instead of `~/.local/bin/rnv-wrapp`; PATH is left for you to configure.
 ```bash
-curl -o install-rnv.sh https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-rnv.sh
-chmod +x install-rnv.sh
+# Custom location, still automatic
+./install-rnv.sh --unattended --install-dir=/opt/rnv
+
+# Custom location, PATH left for you to configure
 ./install-rnv.sh --install-dir=/opt/rnv
+
+# Prompts for a location (terminal only)
+./install-rnv.sh --install-dir
 ```
 
-**Windows:** `--install-dir=<path>` installs elsewhere instead of `%USERPROFILE%\rnv-wrapp`. Still added to PATH.
 ```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-rnv.ps1" -OutFile install-rnv.ps1
+.\install-rnv.ps1 --unattended --install-dir=C:\Tools\rnv
 .\install-rnv.ps1 --install-dir=C:\Tools\rnv
+.\install-rnv.ps1 --install-dir
 ```
 
-### 2. veraPDF
-
-**Linux / macOS:** `--install-dir=<path>` installs elsewhere instead of `~/verapdf`; the symlink in `~/.local/bin` is still created. Use `--no-symlink` to skip it.
-```bash
-curl -o install-verapdf.sh https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-verapdf.sh
-chmod +x install-verapdf.sh
-./install-verapdf.sh --install-dir=/opt/verapdf
-```
-
-**Windows:** `--install-dir=<path>` installs elsewhere instead of `%USERPROFILE%\verapdf`. Still added to PATH.
-```powershell
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/pablgonz/rnv-vera-pdf-cli/main/install-verapdf.ps1" -OutFile install-verapdf.ps1
-.\install-verapdf.ps1 --install-dir=C:\Tools\verapdf
-```
-
-Pass `--help` to any of the four installers for the full list of options.
+The same three forms work for `install-verapdf.sh`/`.ps1`. On Linux/macOS, `install-verapdf.sh` also takes `--no-symlink`, to skip the `~/.local/bin` symlink even under `--unattended`.
 
 ## Security & Code Signing
 
