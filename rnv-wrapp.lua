@@ -106,11 +106,7 @@ while i <= #arg do
             -- user error, not something to forward to RNV.
             io.stderr:write("Error: unrecognized option '" .. current .. "'\n")
             os.exit(1)
-        elseif current == "-h" or current == "-help" then
-            -- "-help" is an RNV oddity (single dash, multiple
-            -- characters); normalized to "-h" before forwarding.
-            table.insert(rnv_flags, "-h")
-        elseif current:match("^%-[qnpcsv]$") then
+        elseif current:match("^%-[qnpcshv]$") then
             table.insert(rnv_flags, current)
             if current == "-n" then
                 if not arg[i+1] then
@@ -189,8 +185,7 @@ RNV Options
                     exits;
   -s                uses less memory and runs slower;
   -v                prints version number;
-  -h, -help         displays usage summary and exits (note: single dash --
-                    rnv does not recognize "--help").
+  -h                displays usage summary and exits.
 
 Note: If no documents are specified, RNV attempts to read the XML document
 from the standard input.

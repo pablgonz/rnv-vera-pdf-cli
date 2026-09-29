@@ -21,8 +21,6 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         version:
           - 2026
-        command:
-          - doc
 
     steps:
       - name: Checkout
@@ -145,15 +143,24 @@ jobs:
         run: rnv-wrapp --version
         shell: pwsh
 
-      - name: Check rnv-wrapp -help (Linux)
+      - name: Check rnv-wrapp rejects -help (not a real RNV option) (Linux)
         if: runner.os == 'Linux'
-        run: rnv-wrapp -help || true
+        run: |
+          if rnv-wrapp -help; then
+            echo "Error: rnv-wrapp accepted -help, which is not a real RNV option" >&2
+            exit 1
+          fi
 
-      - name: Check rnv-wrapp -help (Windows)
+      - name: Check rnv-wrapp rejects -help (not a real RNV option) (Windows)
         if: runner.os == 'Windows'
-        run: rnv-wrapp -help
         shell: pwsh
-        continue-on-error: true
+        run: |
+          rnv-wrapp -help
+          if ($LASTEXITCODE -eq 0) {
+            Write-Error "rnv-wrapp accepted -help, which is not a real RNV option"
+            exit 1
+          }
+          exit 0
 
       - name: Check rnv-wrapp -h (Linux)
         if: runner.os == 'Linux'
@@ -248,12 +255,11 @@ jobs:
       # 6b. show-pdf-tags's stderr never reaches rnv-wrapp through a
       # normal pipe (confirmed) -- so this checks the two things
       # separately: that show-pdf-tags itself warns about the missing
-      # tagging (its own job), and that rnv-wrapp still runs cleanly
-      # on the resulting XML (its own, unrelated job). A known
-      # upstream schema issue (reported to David Carlisle) currently
-      # makes rnv itself accept this XML as valid -- that's not
-      # asserted here, only printed for visibility.
-      - name: Check test-fail.pdf warning and rnv-wrapp output (Linux)
+      # tagging (its own job), and that rnv-wrapp correctly rejects
+      # the resulting XML (its own, unrelated job). The upstream
+      # schema issue this used to hit (reported to David Carlisle)
+      # is now fixed -- an empty StructTreeRoot is rejected.
+      - name: Check rnv-wrapp reports FAIL on an untagged PDF (Linux)
         if: runner.os == 'Linux'
         run: |
           xml_output=$(show-pdf-tags --xml test-fail.pdf 2>/dev/null)
@@ -267,8 +273,12 @@ jobs:
             echo "Error: expected the 'not be tagged' warning from show-pdf-tags" >&2
             exit 1
           fi
+          if ! echo "$rnv_output" | grep -q "^FAIL:"; then
+            echo "Error: expected rnv-wrapp to report FAIL on an untagged PDF" >&2
+            exit 1
+          fi
 
-      - name: Check test-fail.pdf warning and rnv-wrapp output (Windows)
+      - name: Check rnv-wrapp reports FAIL on an untagged PDF (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -281,6 +291,31 @@ jobs:
 
           if (-not ($combined -match "not be tagged")) {
             Write-Error "Expected the 'not be tagged' warning from show-pdf-tags"
+            exit 1
+          }
+          if (-not ($rnv_output -match "^FAIL:")) {
+            Write-Error "Expected rnv-wrapp to report FAIL on an untagged PDF"
+            exit 1
+          }
+          exit 0
+
+      - name: Check rnv-wrapp --strict exits non-zero on failure (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          xml_output=$(show-pdf-tags --xml test-fail.pdf 2>/dev/null)
+          if rnv-wrapp --schema=auto --strict <<< "$xml_output"; then
+            echo "Error: --strict should have exited non-zero on a failing document" >&2
+            exit 1
+          fi
+
+      - name: Check rnv-wrapp --strict exits non-zero on failure (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $xml_output = show-pdf-tags --xml test-fail.pdf 2>$null
+          $xml_output | rnv-wrapp --schema=auto --strict
+          if ($LASTEXITCODE -eq 0) {
+            Write-Error "--strict should have exited non-zero on a failing document"
             exit 1
           }
           exit 0
