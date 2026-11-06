@@ -24,6 +24,7 @@ babel-spanish
 fontspec
 unicode-math
 unicode-data
+nameref
 gettitlestring
 hycolor
 hypdoc
